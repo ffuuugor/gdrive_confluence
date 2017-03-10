@@ -75,6 +75,7 @@ public class GDriveImportServlet extends HttpServlet
         log.debug("Creating new page " + title + " on behalf of user " + username);
 
         Page created = tryCreatePage(username, title, content);
+        //TODO: we should probably return more extensive respone. And also wrap for useful error messages
         Writer w = response.getWriter();
         w.write(String.valueOf(created.getId()));
         w.close();
@@ -84,7 +85,7 @@ public class GDriveImportServlet extends HttpServlet
 
     private Page tryCreatePage(String username, final String title, final String content) {
         User user = userAccessor.getUserByName(username);
-        final Space space = spaceManager.getAllSpaces().get(1);
+        final Space space = spaceManager.getAllSpaces().get(1); // FIXME
         final Page spaceRoot = space.getHomePage();
 
         PageProvider pageProvider = new PageProvider() {
