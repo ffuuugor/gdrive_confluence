@@ -1,0 +1,154 @@
+#requireResource("confluence.web.resources:jquery")
+#requireResource("com.atlassian.auiplugin:aui-buttons")
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8" />
+	<title>Google Drive Import</title>
+	<meta name="decorator" content="atl.admin">
+</head>
+<body>
+	<p>Import your Google Docs as Confluence pages</p>
+	<button type="button" id="pick" class="aui-button">Import</button>
+
+	<script type="text/javascript">
+		var API_KEY='';
+		var CLIENT_ID=''
+		var APP_ID=''
+		var SCOPE='https://www.googleapis.com/auth/drive.readonly'
+
+		var FilePicker = window.FilePicker = function(options) {
+			// Config
+			this.apiKey = options.apiKey;
+			this.clientId = options.clientId;
+			
+			// Elements
+			this.buttonEl = options.buttonEl;
+			
+			// Events
+			this.buttonEl.addEventListener('click', this.open.bind(this));		
+		
+			// Disable the button until the API loads, as it won't work properly until then.
+			this.buttonEl.disabled = true;
+
+			// Load the drive API
+			gapi.client.setApiKey(this.apiKey);
+			gapi.client.load('drive', 'v2', this._driveApiLoaded.bind(this));
+			google.load('picker', '1', { callback: this._pickerApiLoaded.bind(this) });
+		}
+
+		FilePicker.prototype = {
+		/**
+		 * Open the file picker.
+		 */
+		open: function() {		
+			// Check if the user has already authenticated
+			var token = gapi.auth.getToken();
+			if (token) {
+				this._showPicker();
+			} else {
+				// The user has not yet authenticated with Google
+				// We need to do the authentication before displaying the Drive picker.
+				this._doAuth(false, function() { this._showPicker(); }.bind(this));
+			}
+		},
+		
+		/**
+		 * Show the file picker once authentication has been done.
+		 * @private
+		 */
+		_showPicker: function() {
+			var accessToken = gapi.auth.getToken().access_token;
+			var view = new google.picker.View(google.picker.ViewId.DOCS);
+        	view.setMimeTypes("application/vnd.google-apps.document");
+			this.picker = new google.picker.PickerBuilder().
+				addView(view).
+            	addView(new google.picker.DocsUploadView()).
+				enableFeature(google.picker.Feature.NAV_HIDDEN).
+            	enableFeature(google.picker.Feature.MULTISELECT_ENABLED).
+				setAppId(APP_ID).
+				setOAuthToken(accessToken).
+				setCallback(this._pickerCallback.bind(this)).
+				build().
+				setVisible(true);
+		},
+		
+		/**
+		 * Called when a file has been selected in the Google Drive file picker.
+		 * @private
+		 */
+		_pickerCallback: function(data) {
+			if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+				var file = data[google.picker.Response.DOCUMENTS][0];
+				var id = file[google.picker.Document.ID];
+				console.log(file[google.picker.Document.ID]);
+
+				var request = gapi.client.drive.files.export({
+		            fileId: file[google.picker.Document.ID],
+		            mimeType: 'text/plain'
+		          });
+
+		        request.then(function(response) {
+		            jQuery.ajax({
+		                type: "POST",
+		                url: "/confluence/plugins/servlet/gdrive/import",
+		                data: {title: file.name, content: response.body},
+			            success: function(data) {
+			            	alert("Created page id:" + data)
+			            },
+			       		error: function(data) {
+			       			console.log(data);
+			            	alert("Error: " + data.statusText);
+			            },
+		                dataType: "json"
+		              });
+		        }, function(err) {
+		            console.log('Error');
+		            console.log(err.result.error);
+		        });
+
+			}
+		},
+		
+		/**
+		 * Called when the Google Drive file picker API has finished loading.
+		 * @private
+		 */
+		_pickerApiLoaded: function() {
+			this.buttonEl.disabled = false;
+		},
+		
+		/**
+		 * Called when the Google Drive API has finished loading.
+		 * @private
+		 */
+		_driveApiLoaded: function() {
+			this._doAuth(true);
+		},
+		
+		/**
+		 * Authenticate with Google Drive via the Google JavaScript API.
+		 * @private
+		 */
+		_doAuth: function(immediate, callback) {	
+			gapi.auth.authorize({
+				client_id: this.clientId,
+				scope: SCOPE,
+				immediate: immediate
+			}, callback);
+		}
+	};
+
+	function initPicker() {
+		var picker = new FilePicker({
+			apiKey: API_KEY,
+			clientId: CLIENT_ID,
+			buttonEl: document.getElementById('pick')
+		});	
+	}
+	</script>
+	
+	<script src="https://www.google.com/jsapi"></script>
+	<script src="https://apis.google.com/js/client.js?onload=initPicker"></script>
+</body>
+</html>
