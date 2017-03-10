@@ -39,3 +39,4 @@ Things that are acknowledged and planned to be worked on
 * Let users import multiple documents at a time
 * Retrieve API key from the servlet not to expose it to public
 * Change ugly native alets about page creating with fancy Confluecne-style notifications
+* Add more MIME types (SpreadSheets, Drawings, etc.)
